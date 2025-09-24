@@ -1,0 +1,46 @@
+version: "3.8"
+
+networks:
+  proxy:
+    external: true # or comment this line to auto create the network create with: docker network create proxy
+  web:
+    external: true # or comment this line to auto create the network create with: docker network create web
+  internal:
+    driver: bridge
+
+services:
+  traefik:
+    image: traefik:latest
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - "--configFile=/traefik.yml"
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - CF_API_EMAIL=${CF_API_EMAIL} # <- your Cloudflare email in environment variables
+      - CF_API_KEY=${CF_API_KEY}     # <- your Cloudflare API key in environment variables
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./traefik.yml:/traefik.yml:ro
+      - ./letsencrypt:/letsencrypt
+      - ./logs/traefik:/var/log/traefik   # <- log directory
+      - ./auth:/auth:ro                    # <- directory for basic auth file e.g admin:$apr1$H6uskkkW$IgXLP6ewTrSuBkTrqE8wj/ which is admin:password
+    networks:
+      - web # <- network for traefik and your services
+      - internal # <- internal network for secure services
+      - proxy # <- network for proxies
+
+    labels:
+      # Dashboard
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik.yourdomain.com`)" # <- change to your domain
+      - "traefik.http.routers.traefik.entrypoints=websecure" # <- use websecure entrypoint
+      - "traefik.http.routers.traefik.tls=true" # <- enable TLS
+      - "traefik.http.routers.traefik.tls.certresolver=myresolver" # <- use the certresolver defined in traefik.yml
+      - "traefik.http.routers.traefik.middlewares=auth" # <- enable authentication middleware
+      - "traefik.http.middlewares.auth.basicauth.removeheader=true" # <- remove the header after authentication
+      - "traefik.http.middlewares.auth.basicauth.usersfile=/auth/.htpasswd" # <- path to your htpasswd file
+      - "traefik.http.routers.traefik.service=api@internal" # <- enable the api service
+      - "traefik.http.routers.traefik.priority=10" # <- set a high priority to avoid conflicts with other routers

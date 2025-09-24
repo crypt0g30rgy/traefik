@@ -1,0 +1,42 @@
+# traefik.yml
+api:
+  dashboard: true
+  insecure: false
+
+log:
+  level: INFO
+
+entryPoints:
+  web:
+    address: ":80"
+    http:
+      redirections:
+        entryPoint:
+          to: websecure
+          scheme: https
+          permanent: true
+  websecure:
+    address: ":443"
+
+providers:
+  docker:
+    exposedByDefault: false
+
+certificatesResolvers:
+  myresolver:
+    acme:
+      # Use Cloudflare DNS challenge
+      delayBeforeCheck: 0
+      # request wildcard
+      domains:
+        - main: "*.yourdomain.com"
+      email: ${CF_API_EMAIL}  # your Let's Encrypt email in environment variables
+      storage: /letsencrypt/acme.json
+      caServer: https://acme-v02.api.letsencrypt.org/directory
+      # Uncomment the line below to use Let's Encrypt staging environment for testing
+      # caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+
+log:
+  level: DEBUG
+  filePath: /var/log/traefik/traefik.log
+  format: common
